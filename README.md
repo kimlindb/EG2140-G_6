@@ -1,1 +1,3 @@
-# EG2140-G_6
+Lyssna på mig mina vänner det här viktigt ~ Amal Lahlou
+
+# Git
