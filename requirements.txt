@@ -8,3 +8,4 @@ numpy
 netCDF4
 xarray
 seaborn
+statsmodels

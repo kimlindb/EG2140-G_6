@@ -1,97 +1,144 @@
-# Hello this file does five things
-# 1. Imports raw data
-# 2. Parses out the variables we will use
-# 3. Fills in NaN values or time gaps
-# 4. Fitts the data on the same time-axis (0.5h same as cvs file)
-# 5. Splits the data into training, validation and testing
+# DO NOT FORGET TO UNCOMMENT WRITE TO FILE
+# FILE STORED IN THE DATA FOLDER
 
-# More generly speaking this will take in the data and return the data will be used further down 
+# Preporssesing of data is done like in competition
+# Most of the code is copued from the competition notebook ("Getting Started.ipynb")
+# and modified to fit the needs of this project
 
-# 1. Parse Variables
-# There are a total of 7 data sets, with a lot of variables and other jazz, 
-# the implemented method will use ensables so most of the variables will be used, 
-# things that will be dropped are related to traiding or redundancy
-
-# import packages for testing file 
-import numpy as np
+# Reqeuired Libraries
 import pandas as pd
 import xarray as xr
-import matplotlib.pyplot as plt
-
-# Loacal funcions
-def interpolate_weather_variable(ds, var_name, point_idx, energy_data_dtm):
-    """
-    Interpolates a weather variable from an xarray.Dataset to match energy data timestamps.
-
-    Parameters:
-        ds (xarray.Dataset): The dataset containing weather data.
-        var_name (str): Name of the variable in ds (e.g., "Temperature").
-        point_idx (int): Index of the point to extract.
-        energy_data_dtm (array-like): Timestamps of energy data.
-
-    Returns:
-        pd.Series: Interpolated weather variable values aligned with energy_data_dtm.
-    """
-    # Extract variable values and associated times
-    var = ds[var_name][:, :, point_idx].values
-    ref_times = pd.to_datetime(ds["ref_datetime"].values)
-    valid_offsets = ds["valid_datetime"].values  # hours ahead
-
-    # Flatten into timestamp-value pairs
-    all_datetimes = []
-    all_values = []
-    for i, ref_time in enumerate(ref_times):
-        for j, offset in enumerate(valid_offsets):
-            forecast_time = ref_time + pd.Timedelta(hours=int(offset))
-            value = var[i, j]
-            if not np.isnan(value):
-                all_datetimes.append(forecast_time)
-                all_values.append(value)
-
-    # Make sure energy timestamps are a proper DatetimeIndex
-    energy_timestamps = pd.to_datetime(energy_data_dtm)
-    energy_timestamps = pd.DatetimeIndex(energy_timestamps).tz_localize(None)
-
-    # Create initial Series
-    ts = pd.Series(all_values, index=pd.DatetimeIndex(all_datetimes)).tz_localize(None)
-
-    # Average duplicates (if any)
-    ts = ts.groupby(ts.index).mean()
-
-    # Combine, sort and interpolate
-    combined_index = pd.DatetimeIndex(ts.index.union(energy_timestamps)).sort_values()
-    ts_interpolated = ts.reindex(combined_index).interpolate(method='time')
-
-    # Return only the values aligned with energy timestamps
-    return ts_interpolated.loc[energy_timestamps]
+import numpy as np
+#import statsmodels.formula.api as smf
+#from statsmodels.iolib.smpickle import load_pickle
+#import comp_utils
+#import matplotlib.pyplot as plt
+#import matplotlib.dates as mdates
+#from matplotlib.ticker import MaxNLocator
+#import seaborn as sns
+import warnings
+warnings.simplefilter(action='ignore', category=FutureWarning)
+#import pickle as pkl
 
 
-# 1. import data
+# load data and create a dataframe
+# DWD data
+dwd_Hornsea = xr.open_dataset("data/dwd_icon_eu_hornsea_1_20200920_20231027.nc")
+subset = dwd_Hornsea[["RelativeHumidity", "WindDirection:100","WindSpeed:100"]]
+avg_over_space = subset.mean(dim=["latitude","longitude"])
+df_dwd_Hornsea = avg_over_space.to_dataframe().reset_index()
+df_dwd_Hornsea["ref_datetime"] = df_dwd_Hornsea["ref_datetime"].dt.tz_localize("UTC")
+df_dwd_Hornsea["valid_datetime"] = df_dwd_Hornsea["ref_datetime"] + pd.TimedeltaIndex(df_dwd_Hornsea["valid_datetime"],unit="hours")
+df_dwd_Hornsea = df_dwd_Hornsea.rename(columns={
+    "RelativeHumidity": "dwd_RelativeHumidity",
+    "WindDirection:100": "dwd_WindDirection_100",
+    "WindSpeed:100": "dwd_WindSpeed_100"
+})
 
-# 1.1 Weather data 
-dwd_demand = xr.open_dataset("data/dwd_icon_eu_demand_20200920_20231027.nc")
-dwd_hornsea = xr.Dataset("data/dwd_icon_eu_hornsea_1_20200920_20231027.nc")
-dwd_pes10 = xr.Dataset("data/dwd_icon_eu_pes10_20200920_20231027.nc")
-ncep_demand = xr.Dataset("data/ncep_gfs_demand_20200920_20231027.nc")
-ncep_hornsea = xr.Dataset("data/ncep_gfs_hornsea_1_20200920_20231027.nc")
-ncep_pes10 = xr.Dataset("data/ncep_gfs_pes10_20200920_20231027.nc")
+dwd_pes10 = xr.open_dataset("data/dwd_icon_eu_pes10_20200920_20231027.nc")
+subset = dwd_pes10[["CloudCover", "SolarDownwardRadiation","Temperature"]]
+avg_over_space = subset.mean(dim=["point"])
+df_dwd_pes10 = avg_over_space.to_dataframe().reset_index()
+df_dwd_pes10["ref_datetime"] = df_dwd_pes10["ref_datetime"].dt.tz_localize("UTC")
+df_dwd_pes10["valid_datetime"] = df_dwd_pes10["ref_datetime"] + pd.TimedeltaIndex(df_dwd_pes10["valid_datetime"],unit="hours")
+df_dwd_pes10 = df_dwd_pes10.rename(columns={
+    "CloudCover": "dwd_CloudCover",
+    "SolarDownwardRadiation": "dwd_SolarDownwardRadiation",
+    "Temperature": "dwd_Temperature"
+})
 
-# 1.2 Energy data
+# NCEP data
+ncep_Hornsea = xr.open_dataset("data/ncep_gfs_hornsea_1_20200920_20231027.nc")
+subset = ncep_Hornsea[["RelativeHumidity", "WindDirection:100","WindSpeed:100"]]
+avg_over_space = subset.mean(dim=["latitude","longitude"])
+df_ncep_Hornsea = avg_over_space.to_dataframe().reset_index()
+df_ncep_Hornsea["ref_datetime"] = df_ncep_Hornsea["ref_datetime"].dt.tz_localize("UTC")
+df_ncep_Hornsea["valid_datetime"] = df_ncep_Hornsea["ref_datetime"] + pd.TimedeltaIndex(df_ncep_Hornsea["valid_datetime"],unit="hours")
+df_ncep_Hornsea = df_ncep_Hornsea.rename(columns={
+    "RelativeHumidity": "ncep_RelativeHumidity",
+    "WindDirection:100": "ncep_WindDirection_100",
+    "WindSpeed:100": "ncep_WindSpeed_100"
+})
+
+ncep_pes10 = xr.open_dataset("data/ncep_gfs_pes10_20200920_20231027.nc")
+subset = ncep_pes10[["CloudCover", "SolarDownwardRadiation","Temperature"]]
+avg_over_space = subset.mean(dim=["point"])
+df_ncep_pes10 = avg_over_space.to_dataframe().reset_index()
+df_ncep_pes10["ref_datetime"] = df_ncep_pes10["ref_datetime"].dt.tz_localize("UTC")
+df_ncep_pes10["valid_datetime"] = df_ncep_pes10["ref_datetime"] + pd.TimedeltaIndex(df_ncep_pes10["valid_datetime"],unit="hours")
+df_ncep_pes10 = df_ncep_pes10.rename(columns={
+    "CloudCover": "ncep_CloudCover",
+    "SolarDownwardRadiation": "ncep_SolarDownwardRadiation",
+    "Temperature": "ncep_Temperature"
+})
+
+# Merge dataframes
+df_merged = df_dwd_Hornsea \
+    .merge(df_dwd_pes10, how="outer",on=["ref_datetime","valid_datetime"]) \
+    .merge(df_ncep_Hornsea, how="outer",on=["ref_datetime","valid_datetime"]) \
+    .merge(df_ncep_pes10, how="outer",on=["ref_datetime","valid_datetime"])
+
+df_merged = df_merged.set_index("valid_datetime").groupby("ref_datetime").resample("30T").interpolate("linear")
+df_merged = df_merged.drop(columns="ref_datetime",axis=1).reset_index()
+
+# print("number of nans in the data:")
+# print(df_merged.isna().sum().sum())
+# No NaNs in the data great move on to energy data
+
+# Load energy data
 energy_data = pd.read_csv("data/Energy_Data_20200920_20231027.csv") 
 
-# 2.1 Parse energy data 
 energy_data_dtm = energy_data["dtm"]
 energy_data_Solar = energy_data["Solar_MW"]
 energy_data_Wind = energy_data["Wind_MW"]
+energy_data_wind_curtailment = energy_data["boa_MWh"]
 
-# 3.1 Repair energy data, there are no time gaps but some NaNs
-# Simply use linear interpolisation 
-
+# Repair energy data, there are no time gaps but some NaNs, use linear interpolation
 energy_data_Solar = energy_data_Solar.sort_index()
 energy_data_Solar.interpolate(method='linear', inplace=True)
+energy_data["Solar_MW"] = energy_data_Solar
 
 energy_data_Wind = energy_data_Wind.sort_index()
 energy_data_Wind.interpolate(method='linear', inplace=True)
+energy_data["Wind_MW"] = energy_data_Wind
 
-# 3.2 Repair weather data, there are no time gaps but some NaNs
+energy_data_wind_curtailment = energy_data_wind_curtailment.sort_index()
+energy_data_wind_curtailment.interpolate(method='linear', inplace=True)
+energy_data["boa_MWh"] = energy_data_wind_curtailment
 
+# Calculate cutailment
+energy_data['wind_curtailment_MW'] = -energy_data['boa_MWh'] / 0.5
+energy_data['wind_potential_MW'] = energy_data['Wind_MW'] + energy_data['wind_curtailment_MW']
+
+# TARGET MWh!!! 
+energy_data["Wind_MWh_credit"] = 0.5*energy_data["Wind_MW"] - energy_data["boa_MWh"]
+energy_data["Solar_MWh_credit"] = 0.5*energy_data["Solar_MW"]
+energy_data["total_generation_MWh"] = energy_data["Wind_MWh_credit"] + energy_data["Solar_MWh_credit"]
+
+energy_export = energy_data[[
+    'dtm',
+    'Solar_MW',
+    'Wind_MW',
+    'wind_curtailment_MW',
+    'wind_potential_MW',
+    'Solar_MWh_credit',
+    'Wind_MWh_credit',
+    'total_generation_MWh',
+]]
+
+# Convert dtm to datetime
+energy_export = energy_export.copy()
+energy_export['dtm'] = pd.to_datetime(energy_export['dtm'], utc=True)
+
+df_merged = df_merged.merge(energy_export, how="inner", left_on="valid_datetime", right_on="dtm")
+df_merged = df_merged[df_merged["valid_datetime"] - df_merged["ref_datetime"] < np.timedelta64(6,"h")]
+
+# Save to CSVs
+#df_merged.to_csv("data/forecast_data_merged.csv", index=False)
+
+
+#print(len(energy_data_Wind)) # 54384
+#print(len(df_merged)) # 54348
+# They don't line up unforunately
+# why?
+# gud vet

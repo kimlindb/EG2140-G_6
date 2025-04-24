@@ -1,11 +1,5 @@
 # hello world
 
-# Questions:
-# Should I scale solar and wind training data ? (scaleminmax)
-# Should I do scaling last when all features are added ?
-# Runtime of random forest is very long, is it expected?
-# How will the results change when we add quantiles to the model ?
-
 # Time gap that we're going to ignore
 # Before: 2022-11-23 00:00:00
 # After:  2022-12-06 18:00:00
