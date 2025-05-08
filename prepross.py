@@ -131,10 +131,11 @@ energy_export = energy_export.copy()
 energy_export['dtm'] = pd.to_datetime(energy_export['dtm'], utc=True)
 
 df_merged = df_merged.merge(energy_export, how="inner", left_on="valid_datetime", right_on="dtm")
-df_merged = df_merged[df_merged["valid_datetime"] - df_merged["ref_datetime"] < np.timedelta64(50,"h")]
+# KEEP ALL OVERLAPP 
+#df_merged = df_merged[df_merged["valid_datetime"] - df_merged["ref_datetime"] < np.timedelta64(50,"h")]
 
 # Save to CSVs
-#df_merged.to_csv("data/forecast_data_merged_2.csv", index=False)
+#df_merged.to_csv("data/forecast_data_merged_3.csv", index=False)
 
 
 #print(len(energy_data_Wind)) # 54384

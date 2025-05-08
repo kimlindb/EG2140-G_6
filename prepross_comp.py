@@ -71,9 +71,9 @@ df_merged = df_merged.drop(columns="reference_time",axis=1).reset_index()
 print("number of nans in the data:")
 print(df_merged.isna().sum().sum())
 # STILL No NaNs LETS GOO
-
-df_merged = df_merged[df_merged["valid_time"] - df_merged["reference_time"] < np.timedelta64(50,"h")]
+# KEEP ALL OVERLAPP
+#df_merged = df_merged[df_merged["valid_time"] - df_merged["reference_time"] < np.timedelta64(50,"h")]
 
 # Save to CSVs
-#df_merged.to_csv("data_comp/forecast_data_merged_comp.csv", index=False)
+df_merged.to_csv("data_comp/forecast_data_merged_comp.csv", index=False)
 

@@ -9,3 +9,5 @@ netCDF4
 xarray
 seaborn
 statsmodels
+quantile_forest
+xgboost 
